@@ -1,0 +1,10 @@
+# Requirements untuk TFT Model CPU Inference
+# Model dilatih dengan GPU tapi bisa berjalan di CPU
+flask==3.1.2
+pytorch-forecasting==1.8.0
+torch==2.11.0
+pandas==2.3.3
+numpy==2.3.5
+scikit-learn==1.6.1  # ← VERSI INI! Match dengan training environment
+lightning==2.6.1
+pytorch-lightning==2.6.1
