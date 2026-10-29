@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Price Predictor - TFT Model</title>
+    <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0f766e;
+            --primary-dark: #0d5f56;
+            --secondary: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --dark: #1f2937;
+            --gray: #6b7280;
+            --light: #f3f4f6;
+            --white: #ffffff;
+            --border: #e5e7eb;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f766e 0%, #0d5f56 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--dark);
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .forecast-table-scroll {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        @media (max-width: 480px) {
+            #forecastSummary > div {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
+        }
+
+        /* Header */
+        .header {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-left h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-left h1::before {
+            content: "🪙";
+            font-size: 32px;
+        }
+
+        .header-left p {
+            color: var(--gray);
+            font-size: 14px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .stat-badge {
+            background: var(--light);
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-badge .label {
+            font-size: 12px;
+            color: var(--gray);
+            font-weight: 500;
+        }
+
+        .stat-badge .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 24px;
+        }
+
+        .main-content > * {
+            min-width: 0;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px var(--shadow);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--light);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Upload Section */
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--light);
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(15, 118, 110, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--primary);
+            background: rgba(15, 118, 110, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .upload-text {
+            color: var(--gray);
+            font-size: 14px;
+        }
+
+        .upload-text strong {
+            color: var(--primary);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--gray);
+            margin-top: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--white);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--light);
+            color: var(--dark);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: var(--white);
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: var(--light);
+            padding: 6px;
+            border-radius: 12px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            background: var(--white);
+            color: var(--primary);
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Data Preview */
+        .data-preview {
+            width: 100%;
+            max-width: 100%;
+            max-height: 300px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .preview-table th {
+            background: var(--light);
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .preview-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .preview-table tr:hover {
+            background: var(--light);
+        }
+
+        /* Chart */
+        .chart-container {
+            width: 100%;
+            height: 400px;
+        }
+
+        /* Results Table */
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .results-table th {
+            background: var(--primary);
+            color: var(--white);
+            padding: 14px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .results-table td {
+            padding: 12px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .results-table tr:nth-child(even) {
+            background: var(--light);
+        }
+
+        .price-cell {
+            font-weight: 700;
+            color: var(--primary);
+            font-size: 16px;
+        }
+
+        /* Status Messages */
+        .status {
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid var(--success);
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid var(--danger);
+        }
+
+        .status-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid var(--info);
+        }
+
+        .status-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid var(--warning);
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Model Badge */
+        .model-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .model-badge-tft {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .model-badge-fallback {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        /* Full Width */
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* Info Box */
+        .info-box {
+            background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h4 {
+            color: #1e40af;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box p {
+            color: #1e3a8a;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* File Input */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Range Input */
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--light);
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
+        /* Number Input Styling */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <h1>Gold Price Predictor</h1>
+                <p>Temporal Fusion Transformer (TFT) Model - 7 Day Forecast</p>
+            </div>
+            <div class="header-stats">
+                <div class="stat-badge">
+                    <div class="label">Model Status</div>
+                    <div class="value" id="modelStatus">Checking...</div>
+                </div>
+                <div class="stat-badge">
+                    <div class="label">Forecast Days</div>
+                    <div class="value">7 Days</div>
+                </div>
+                <div class="stat-badge">
+                    <div class="label">History Required</div>
+                    <div class="value">60 Days</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Column - Input -->
+            <div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">📊 Input Data</h2>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchInputTab('upload')">📁 Upload CSV</button>
+                        <button class="tab" onclick="switchInputTab('manual')">✏️ Manual Input</button>
+                        <button class="tab" onclick="switchInputTab('dataset')">💾 Load Dataset</button>
+                        <button class="tab" onclick="switchInputTab('sample')">🎯 Sample Data</button>
+                        <button class="tab" onclick="switchInputTab('analysis')">📈 Model Analysis</button>
+                    </div>
+
+                    <!-- Upload Tab -->
+                    <div class="tab-content active" id="tab-upload">
+                        <div class="info-box">
+                            <h4>📋 Required CSV Format</h4>
+                            <p>Gunakan file CSV yang berisi minimal 80 baris data historis dengan format kolom yang sesuai, mencakup tanggal, harga emas, DXY, S&P 500, harga minyak, dan Federal Funds Rate (DFF). Sistem akan memproses data secara otomatis sesuai kebutuhan model untuk menghasilkan prediksi harga emas.</p>
+                        </div>
+
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">📄</div>
+                            <p class="upload-text"><strong>Click to upload</strong> or drag and drop</p>
+                            <p class="upload-text">CSV file with historical gold data</p>
+                            <input type="file" id="csvFile" accept=".csv">
+                        </div>
+
+                        <div id="fileInfo" style="margin-top: 16px; display: none;">
+                            <p style="color: var(--success); font-weight: 600;">✅ File loaded: <span id="fileName"></span></p>
+                            <p style="color: var(--gray); font-size: 13px;">Rows: <span id="fileRows">0</span></p>
+                        </div>
+
+                        <div class="data-preview" id="dataPreview" style="margin-top: 16px; display: none;">
+                            <table class="preview-table" id="previewTable"></table>
+                        </div>
+                    </div>
+
+                    <!-- Manual Input Tab -->
+                    <div class="tab-content" id="tab-manual">
+                        <div class="info-box">
+                            <h4>⚡ Direct Manual Input</h4>
+                            <p>Masukkan atau sesuaikan nilai indikator pasar langsung pada kolom di bawah tanpa perlu unggah CSV. Sistem secara otomatis menggunakan data historis aktual server sebagai baseline 60 hari untuk mengekstrak fitur TFT, lalu menggabungkan nilai input Anda untuk memprediksi 7 hari ke depan.</p>
+                        </div>
+
+                        <div class="baseline-status-box" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-weight: 600; font-size: 13px;">Riwayat Baseline:</span>
+                                    <span id="manualBaselineBadge" class="badge" style="background: var(--success); color: white; font-size: 11px; padding: 3px 8px; border-radius: 12px;">✅ Baseline Siap</span>
+                                </div>
+                                <button type="button" class="btn btn-secondary" onclick="resetManualInputsToBaseline()" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; cursor: pointer;">
+                                    Reset ke tanggal pilihan
+                                </button>
+                            </div>
+                            <p class="form-hint" id="manualHistoryInfo" style="margin-top: 8px; margin-bottom: 0;">Memuat riwayat baseline otomatis dari server...</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">💰 Current Gold Price (USD/oz)</label>
+                            <input type="number" class="form-input" id="goldPrice" required step="0.01" placeholder="Contoh: 2320.50">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">💵 DXY Index</label>
+                                <input type="number" class="form-input" id="usdIndex" required step="0.01" placeholder="Contoh: 104.50">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">📈 S&P 500</label>
+                                <input type="number" class="form-input" id="sp500" required step="0.01" placeholder="Contoh: 5200.00">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">🛢️ Oil Price (WTI)</label>
+                                <input type="number" class="form-input" id="oilPrice" required step="0.01" placeholder="Contoh: 78.50">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">🏦 Fed DFF (%)</label>
+                                <input type="number" class="form-input" id="fedRate" required step="0.01" placeholder="Contoh: 5.33">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Load Dataset Tab -->
+                    <div class="tab-content" id="tab-dataset">
+                        <div class="info-box">
+                            <h4>💾 Load from Training Dataset</h4>
+                            <p>Muat file CSV berisi data historis yang digunakan aplikasi. Data akan diproses secara otomatis, dengan 60 observasi terakhir sebagai input model untuk menghasilkan prediksi harga emas selama tujuh hari ke depan..</p>
+                        </div>
+
+                        <div class="quick-actions">
+                            <button class="btn btn-primary" onclick="loadFromDataset(event)">
+                                <span>📥 Muat CSV Historis Lokal</span>
+                            </button>
+                        </div>
+
+                        <div id="datasetInfo" class="status status-info" style="display: none;">
+                            <div>
+                                <span id="datasetDesc"></span>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 13px; color: #1f2937; opacity: 0.85;" id="datasetSource"></div>
+                        </div>
+
+                        <div class="data-preview" id="datasetPreview" style="display: none;">
+                            <table class="preview-table" id="datasetPreviewTable"></table>
+                        </div>
+                    </div>
+
+                    <!-- Sample Data Tab -->
+                    <div class="tab-content" id="tab-sample">
+                        <div class="info-box">
+                            <h4>🎯 Real Market Scenarios</h4>
+                            <p>Fitur ini menampilkan empat skenario kondisi pasar emas, yaitu Bullish, Bearish, Sideways, dan Volatile berdasarkan pola pergerakan harga historis. Setiap skenario menggunakan data yang sesuai dengan kriteria tertentu untuk mendemonstrasikan prediksi model dalam berbagai kondisi pasar. Hasil yang ditampilkan merupakan simulasi berbasis data historis dan tidak menjamin arah pergerakan harga di masa depan..</p>
+                        </div>
+
+                        <div class="quick-actions">
+                            <button class="btn btn-secondary" onclick="loadScenario('bullish')">📈 Bullish Market</button>
+                            <button class="btn btn-secondary" onclick="loadScenario('bearish')">📉 Bearish Market</button>
+                            <button class="btn btn-secondary" onclick="loadScenario('sideways')">➡️ Sideways</button>
+                            <button class="btn btn-secondary" onclick="loadScenario('volatile')">📊 Volatile</button>
+                            <button class="btn btn-secondary" onclick="resetScenarios()">Perbarui sumber skenario</button>
+                        </div>
+
+                        <div id="scenarioInfo" class="status status-info" style="display: none;">
+                            <span id="scenarioDesc"></span>
+                            <div style="margin-top: 8px; font-size: 13px; color: #1f2937; opacity: 0.85;" id="scenarioSource"></div>
+                        </div>
+
+                        <div class="data-preview" id="scenarioPreview" style="display: none; margin-top: 16px;">
+                            <table class="preview-table" id="scenarioPreviewTable"></table>
+                        </div>
+                    </div>
+
+                    <!-- Model Analysis Tab -->
+                    <div class="tab-content" id="tab-analysis">
+                        <div class="info-box">
+                            <h4>📊 Model Performance Analysis</h4>
+                            <p>Analisis performa model berdasarkan hasil evaluasi untuk melihat kemampuan TFT dalam memprediksi harga emas. Bagian ini menampilkan metrik evaluasi, informasi model, dan data historis sebagai referensi untuk memahami hasil prediksi.</p>
+                        </div>
+
+                        <div class="quick-actions">
+                            <button class="btn btn-primary" onclick="runModelEvaluation()">
+                                <span>📈 Tampilkan Evaluasi</span>
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadModelInfo()">
+                                <span>📋 Model Info</span>
+                            </button>
+                            <button class="btn btn-secondary" onclick="loadHistoricalPerformance()">
+                                <span>📉 Historical Data</span>
+                            </button>
+                        </div>
+
+                        <!-- Evaluation Results -->
+                        <div id="evaluationResults" style="display: none;">
+                            <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600;">📊 Model Evaluation Metrics</h3>
+
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+                                <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                                    <div style="font-size: 12px; color: var(--gray);">MAE (Mean Absolute Error)</div>
+                                    <div style="font-size: 24px; font-weight: 700; color: var(--primary);" id="metricMAE">-</div>
+                                    <div style="font-size: 11px; color: var(--gray);">Average absolute difference</div>
+                                </div>
+                                <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                                    <div style="font-size: 12px; color: var(--gray);">RMSE (Root Mean Squared Error)</div>
+                                    <div style="font-size: 24px; font-weight: 700; color: var(--primary);" id="metricRMSE">-</div>
+                                    <div style="font-size: 11px; color: var(--gray);">Square root of average squared errors</div>
+                                </div>
+                                <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                                    <div style="font-size: 12px; color: var(--gray);">MAPE (%)</div>
+                                    <div style="font-size: 24px; font-weight: 700; color: var(--primary);" id="metricMAPE">-</div>
+                                    <div style="font-size: 11px; color: var(--gray);">Mean absolute percentage error</div>
+                                </div>
+                                <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                                    <div style="font-size: 12px; color: var(--gray);">R² Score</div>
+                                    <div style="font-size: 24px; font-weight: 700; color: var(--primary);" id="metricR2">-</div>
+                                    <div style="font-size: 11px; color: var(--gray);">Coefficient of determination</div>
+                                </div>
+                            </div>
+
+                            <div style="padding: 16px; background: #dbeafe; border-radius: 8px; border-left: 4px solid var(--info);">
+                                <div style="font-size: 12px; color: var(--gray); margin-bottom: 4px;">Interpretation</div>
+                                <div style="font-size: 13px; color: #1e3a8a;" id="metricInterpretation">
+                                    Lower MAE/RMSE = Better accuracy | Lower MAPE = Better percentage accuracy | R² closer to 1 = Better fit
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 16px;">
+                                <p id="evaluationSource" style="font-size: 12px; overflow-wrap: anywhere;"></p>
+                                <h4 style="font-size: 14px; margin-bottom: 10px;">Evaluasi per Horizon</h4>
+                                <div style="overflow-x: auto;">
+                                    <table class="preview-table">
+                                        <thead><tr><th>Horizon</th><th>Sampel</th><th>MAE</th><th>RMSE</th><th>MAPE (%)</th><th>R²</th></tr></thead>
+                                        <tbody id="evaluationHorizons"></tbody>
+                                    </table>
+                                </div>
+                                <h4 style="font-size: 14px; margin: 16px 0 10px;">Visualisasi evaluasi referensi</h4>
+                                <img id="evaluationChart" alt="Metrik validasi TFT per horizon H+1 hingga H+7 — training versi 2" style="width: 100%; height: auto;">
+                            </div>
+                        </div>
+
+                        <!-- Model Info -->
+                        <div id="modelInfoResults" style="display: none;">
+                            <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600;">📋 Model Architecture & Configuration</h3>
+                            <div id="modelInfoContent"></div>
+                        </div>
+
+                        <!-- Historical Performance -->
+                        <div id="historicalResults" style="display: none;">
+                            <h3 style="margin: 20px 0 15px 0; font-size: 16px; font-weight: 600;">📉 Historical Performance (Last 30 Days)</h3>
+                            <div class="chart-container" id="historicalChart" style="height: 350px;"></div>
+                            <div id="historicalSummary" style="margin-top: 16px; padding: 16px; background: var(--light); border-radius: 8px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="info-box" id="marketParameters" style="margin-top: 24px;">
+                        <h4>Konfigurasi Model TFT</h4>
+                        <p>Model Temporal Fusion Transformer (TFT) memanfaatkan data historis harga emas dan indikator ekonomi untuk menghasilkan prediksi harga. Sistem menggunakan 60 observasi terakhir setelah preprocessing, dengan DXY, S&P 500, harga minyak, dan Federal Funds Rate (DFF) sebagai variabel pendukung.</p>
+                        <p id="historySummary">Pilih CSV riwayat lengkap. Minimal 80 baris mentah diperlukan untuk perhitungan fitur dan encoder 60 observasi.</p>
+                    </div>
+
+                    <div class="info-box" id="forecastPeriodControls" style="margin-top: 20px;">
+                        <div class="form-group">
+                            <label class="form-label" for="forecastCutoff">Tanggal akhir data historis</label>
+                            <input type="date" class="form-input" id="forecastCutoff" disabled
+                                   aria-describedby="forecastPeriodHelp forecastPeriodPreview">
+                            <p class="form-hint" id="forecastPeriodHelp">Pilih batas riwayat yang masuk ke TFT. Prediksi dimulai pada hari kerja berikutnya. Minimal 80 observasi mentah; tanggal tidak boleh melewati data sumber.</p>
+                        </div>
+                        <p id="forecastPeriodPreview" role="status">Muat data historis untuk memilih periode prediksi.</p>
+                        <p id="forecastActualCoverage" role="status" style="margin-top: 8px;">Sumber aktual mengikuti tanggal prediksi; ketersediaannya akan ditampilkan setelah data dimuat.</p>
+                    </div>
+
+                    <button class="btn btn-primary" id="btnPredict" style="width: 100%; margin-top: 20px; font-size: 16px; padding: 16px;">
+                        <span>🔮 Generate 7-Day Forecast</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column - Results -->
+            <div>
+                <div class="card" id="statusCard" style="display: none;">
+                    <div class="status" id="statusMessage"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">📈 Forecast Chart</h2>
+                        <span class="model-badge" id="modelBadge" style="display: none;"></span>
+                    </div>
+                    <div class="chart-container" id="chart">
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--gray);">
+                            <p>Run a prediction to see the forecast chart</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">📊 7-Day Price Forecast</h2>
+                        <button class="btn btn-secondary" onclick="downloadCSV()" style="padding: 8px 16px; font-size: 12px;">
+                            📥 Download CSV
+                        </button>
+                    </div>
+                    <p id="forecastActualStatus" role="status" style="font-size: 13px; margin-bottom: 12px;"></p>
+                    <div class="forecast-table-scroll" role="region" aria-label="Tabel prediksi tujuh hari" tabindex="0">
+                    <table class="results-table" id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Date</th>
+                                <th>Predicted Price (USD)</th>
+                                <th>Harga Aktual (USD)</th>
+                                <th>Error Absolut (USD)</th>
+                                <th>Error (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="6" style="color: var(--gray);">No forecast yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                    <p style="font-size: 12px; color: var(--gray); margin-top: 12px;">
+                        Error (%) = |prediksi − harga aktual| / harga aktual × 100%.
+                        Error hanya tersedia jika harga aktual pada tanggal prediksi sudah tersedia.
+                        Aktual dan error diperbarui setiap 60 detik saat halaman aktif, tanpa menjalankan ulang TFT.
+                        Sumber: aktual.csv untuk 13–21 Oktober 2026 (inklusif); Yahoo Finance GC=F Close harian untuk tanggal lainnya.
+                    </p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">📋 Forecast Summary</h2>
+                    </div>
+                    <div id="forecastSummary" style="color: var(--gray); text-align: center; padding: 20px;">
+                        Run a prediction to see the summary
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let encoderData = [];
+        const sourceHistories = {upload: [], dataset: [], sample: []};
+        let apiFutureData = null;
+        let currentPredictions = [];
+        let currentMode = 'upload';
+        let manualHistory = null;
+        let scenarioCatalog = null;
+        let scenarioCatalogPromise = null;
+        let scenarioRequestId = 0;
+        const forecastStorageKey = 'tft:last-forecast';
+        let actualRefreshInFlight = false;
+        const historyCutoffs = {};
+        let actualCoverage = null;
+        let forecastRequestId = 0;
+        let predictionRunning = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkModelStatus();
+            setupEventListeners();
+            configureForecastPeriod();
+            loadActualCoverage();
+            ensureManualBaseline().catch(() => {});
+            restoreForecast();
+            setInterval(refreshForecastActuals, 60000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) refreshForecastActuals();
+            });
+        });
+
+        // Check model status
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                const statusEl = document.getElementById('modelStatus');
+
+                if (data.models && data.models.length > 0) {
+                    statusEl.textContent = 'Ready';
+                    statusEl.style.color = 'var(--success)';
+                } else {
+                    statusEl.textContent = 'Not Loaded';
+                    statusEl.style.color = 'var(--danger)';
+                }
+            } catch (e) {
+                document.getElementById('modelStatus').textContent = 'Error';
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // File upload
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('csvFile');
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file) handleFileUpload(file);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) handleFileUpload(file);
+            });
+
+            // Predict button
+            document.getElementById('btnPredict').addEventListener('click', runPrediction);
+            document.getElementById('forecastCutoff').addEventListener('change', updateForecastPeriod);
+        }
+
+        // Switch input tabs
+        async function switchInputTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            document.querySelector(`.tab[onclick="switchInputTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            currentMode = tab;
+            if (tab !== 'sample') scenarioRequestId++;
+            encoderData = sourceHistories[tab] || [];
+            clearForecast();
+            if (encoderData.length) syncMarketParameters(encoderData);
+            document.getElementById('marketParameters').style.display = tab === 'manual' ? 'none' : 'block';
+
+            if (tab === 'manual') {
+                await ensureManualBaseline();
+                configureForecastPeriod();
+            }
+            if (tab !== 'manual') configureForecastPeriod();
+        }
+
+        function setSourceHistory(mode, rows) {
+            sourceHistories[mode] = rows.map(row => ({...row}));
+            if (currentMode === mode) {
+                encoderData = sourceHistories[mode];
+                if (rows.length) syncMarketParameters(rows);
+                configureForecastPeriod(true);
+            }
+        }
+
+        function syncMarketParameters(rows) {
+            if (!rows || rows.length === 0) return;
+            const latest = rows[rows.length - 1];
+            let usd = null, sp = null, oil = null;
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const r = rows[i];
+                if (usd === null && (r.usd_close != null || r.dxy_close != null)) usd = r.dxy_close ?? r.usd_close;
+                if (sp === null && r.gspc_close != null) sp = r.gspc_close;
+                if (oil === null && r.oil_dcoilwtico != null) oil = r.oil_dcoilwtico;
+                if (usd !== null && sp !== null && oil !== null) break;
+            }
+            document.getElementById('historySummary').textContent =
+                `${rows.length} observasi CSV; terakhir ${latest.date}. DXY Index: ${usd ?? '-'}; S&P 500: ${sp ?? '-'}; minyak: ${oil ?? '-'}. Nilai ini dibaca dari sumber data.`;
+        }
+
+        function forecastHistory() {
+            return currentMode === 'manual' ? (manualHistory || []) :
+                (sourceHistories[currentMode]?.length ? sourceHistories[currentMode] : encoderData);
+        }
+
+        function selectHistoryForForecast(rows) {
+            const cutoff = document.getElementById('forecastCutoff').value;
+            const stamp = new Date(cutoff + 'T00:00:00Z');
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoff) || !Number.isFinite(stamp.getTime()) ||
+                stamp.toISOString().slice(0, 10) !== cutoff) {
+                throw new Error('Pilih tanggal akhir data historis yang valid.');
+            }
+            if (!rows.length || cutoff > rows[rows.length - 1].date) {
+                throw new Error('Tanggal pilihan melewati tanggal terakhir data sumber.');
+            }
+            const selected = rows.filter(row => row.date <= cutoff);
+            if (selected.length < 80) {
+                throw new Error('Tanggal pilihan harus menyisakan minimal 80 observasi mentah untuk TFT.');
+            }
+            return selected;
+        }
+
+        function forecastDates(lastDate) {
+            const cursor = new Date(lastDate + 'T00:00:00Z');
+            const dates = [];
+            while (dates.length < 7) {
+                cursor.setUTCDate(cursor.getUTCDate() + 1);
+                if (cursor.getUTCDay() !== 0 && cursor.getUTCDay() !== 6) {
+                    dates.push(cursor.toISOString().slice(0, 10));
+                }
+            }
+            return dates;
+        }
+
+        function describeActualSources(dates) {
+            const special = dates.filter(day => day >= '2026-10-13' && day <= '2026-10-21');
+            const yahooCount = dates.length - special.length;
+            const descriptions = [];
+            if (special.length) {
+                if (actualCoverage) {
+                    const csv = actualCoverage.csv;
+                    const missing = special.filter(day => !csv.special_dates.includes(day));
+                    descriptions.push(`aktual.csv: ${special.length - missing.length}/${special.length} tanggal tersedia.` +
+                        (missing.length ? ` Belum ada: ${missing.join(', ')}.` : '') +
+                        (csv.last_date ? ` Data CSV terakhir: ${csv.last_date}.` : ' CSV belum memiliki harga valid.'));
+                } else {
+                    descriptions.push(`aktual.csv untuk ${special.length} tanggal pada 13–21 Oktober 2026; cakupan CSV belum dapat diperiksa.`);
+                }
+            }
+            if (yahooCount) {
+                descriptions.push(`Yahoo Finance untuk ${yahooCount} tanggal; ketersediaan harga penutupan diperiksa saat forecast dan pembaruan otomatis.`);
+            }
+            return descriptions.join(' ');
+        }
+
+        function configureForecastPeriod(reset = false) {
+            const picker = document.getElementById('forecastCutoff');
+            const rows = forecastHistory();
+            const preview = document.getElementById('forecastPeriodPreview');
+            const coverage = document.getElementById('forecastActualCoverage');
+            const analysis = currentMode === 'analysis';
+            document.getElementById('forecastPeriodControls').style.display = analysis ? 'none' : 'block';
+            picker.disabled = analysis || rows.length < 80;
+            if (picker.disabled) {
+                picker.value = '';
+                picker.min = '';
+                picker.max = '';
+                preview.textContent = rows.length ? 'Data belum mencukupi: diperlukan minimal 80 observasi mentah.' :
+                    'Muat data historis untuk memilih periode prediksi.';
+                coverage.textContent = 'Harga aktual tidak diisi dengan harga dari tanggal lain.';
+                document.getElementById('btnPredict').disabled = true;
+                return;
+            }
+            picker.min = rows[79].date;
+            picker.max = rows[rows.length - 1].date;
+            if (reset || !(currentMode in historyCutoffs)) historyCutoffs[currentMode] = picker.max;
+            picker.value = historyCutoffs[currentMode];
+            try {
+                const selected = selectHistoryForForecast(rows);
+                const end = selected[selected.length - 1].date;
+                const dates = forecastDates(end);
+                preview.textContent = `Riwayat: ${selected[0].date} s.d. ${end} (${selected.length} observasi). Prediksi: ${dates[0]} s.d. ${dates[6]} (7 hari kerja).`;
+                coverage.textContent = describeActualSources(dates);
+                if (currentMode !== 'manual') syncMarketParameters(selected);
+                document.getElementById('btnPredict').disabled = predictionRunning;
+            } catch (error) {
+                preview.textContent = error.message;
+                coverage.textContent = 'Perbaiki tanggal sebelum menjalankan prediksi.';
+                document.getElementById('btnPredict').disabled = true;
+            }
+        }
+
+        function updateForecastPeriod() {
+            historyCutoffs[currentMode] = document.getElementById('forecastCutoff').value;
+            clearForecast();
+            configureForecastPeriod();
+            if (currentMode === 'manual') {
+                try {
+                    const selected = selectHistoryForForecast(manualHistory || []);
+                    populateManualInputsFromHistory(selected, 'Riwayat sesuai tanggal pilihan');
+                    Object.entries(baselineDefaultValues).forEach(([id, value]) => {
+                        document.getElementById(id).value = value;
+                    });
+                } catch (_) {
+                    // The period preview explains invalid selections; do not change manual values.
+                }
+            }
+        }
+
+        async function loadActualCoverage() {
+            try {
+                const response = await fetch('/api/actuals-coverage');
+                const result = await response.json();
+                if (!response.ok || !result.csv || !Array.isArray(result.csv.special_dates)) {
+                    throw new Error('Cakupan aktual tidak tersedia.');
+                }
+                actualCoverage = result;
+            } catch (_) {
+                actualCoverage = null;
+            }
+            configureForecastPeriod();
+            renderActualsStatus(currentPredictions);
+        }
+
+        function renderActualsStatus(predictions) {
+            const status = document.getElementById('forecastActualStatus');
+            if (!predictions.length) {
+                status.textContent = '';
+                return;
+            }
+            const available = predictions.filter(row => Number.isFinite(row.actual_price)).length;
+            status.textContent = `Aktual tersedia: ${available}/${predictions.length} tanggal.` +
+                (available < predictions.length ? ' Tanda - berarti harga penutupan belum tersedia atau sumber belum dapat diakses. ' +
+                    describeActualSources(predictions.map(row => row.date)) : '');
+        }
+
+        // Upload preserves observations; missing values are not silently replaced.
+        async function handleFileUpload(file) {
+            scenarioRequestId++;
+            setSourceHistory('upload', []);
+            apiFutureData = null;
+            clearForecast();
+            try {
+                if (!file.name.toLowerCase().endsWith('.csv')) throw new Error('Please upload a CSV file');
+                const rows = parseManualCSV(await file.text());
+                setSourceHistory('upload', rows);
+                document.getElementById('fileInfo').style.display = 'block';
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileRows').textContent = rows.length;
+                showPreview(rows.slice(-60, -50));
+                showStatus('success', `CSV dimuat: ${rows.length} observasi (${rows[0].date} s.d. ${rows[rows.length - 1].date}). Seluruh riwayat dipakai untuk menghitung fitur notebook.`);
+            } catch (error) {
+                document.getElementById('fileInfo').style.display = 'none';
+                document.getElementById('dataPreview').style.display = 'none';
+                showStatus('error', error.message);
+            }
+        }
+
+        // Show data preview
+        function showPreview(rows) {
+            const preview = document.getElementById('dataPreview');
+            const table = document.getElementById('previewTable');
+
+            if (rows.length === 0) {
+                preview.style.display = 'none';
+                return;
+            }
+
+            const headers = Object.keys(rows[0]);
+
+            let html = '<thead><tr>';
+            headers.forEach(h => {
+                html += `<th>${h}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            rows.forEach(row => {
+                html += '<tr>';
+                headers.forEach(h => {
+                    html += `<td>${row[h] || ''}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+
+            table.innerHTML = html;
+            preview.style.display = 'block';
+        }
+
+        function resetScenarios() {
+            scenarioRequestId++;
+            scenarioCatalog = null;
+            scenarioCatalogPromise = null;
+            setSourceHistory('sample', []);
+            clearForecast();
+            document.getElementById('scenarioPreview').style.display = 'none';
+            document.getElementById('scenarioInfo').style.display = 'none';
+            showStatus('info', 'Sumber skenario direset. Pilih tombol skenario untuk membaca CSV terbaru.');
+        }
+
+        async function loadScenario(type) {
+            const requestId = ++scenarioRequestId;
+            currentMode = 'sample';
+            setSourceHistory('sample', []);
+            apiFutureData = null;
+            clearForecast();
+            document.getElementById('scenarioPreview').style.display = 'none';
+            document.getElementById('scenarioInfo').style.display = 'none';
+            document.getElementById('marketParameters').style.display = 'block';
+            try {
+                if (!scenarioCatalog) {
+                    if (!scenarioCatalogPromise) {
+                        scenarioCatalogPromise = fetch('/sample-scenarios').then(async response => {
+                            const result = await response.json();
+                            if (!response.ok || !result.success) throw new Error(result.error || 'Sumber skenario tidak tersedia.');
+                            return result;
+                        });
+                    }
+                    const catalog = await scenarioCatalogPromise;
+                    if (requestId !== scenarioRequestId) return;
+                    scenarioCatalog = catalog;
+                }
+                const scenario = scenarioCatalog.scenarios[type];
+                if (!scenario || scenario.data.length !== 60) {
+                    throw new Error(scenarioCatalog.unavailable?.[type] || 'Skenario tidak tersedia pada CSV ini.');
+                }
+                setSourceHistory('sample', scenario.history);
+                document.getElementById('scenarioInfo').style.display = 'block';
+                document.getElementById('scenarioDesc').textContent = `${scenario.name}: ${scenario.description}`;
+                document.getElementById('scenarioSource').textContent = 'Sumber: ' + scenarioCatalog.source;
+                showScenarioPreview(scenario.data.slice(0, 10));
+                showStatus('success', `Skenario ${type} dipilih dari CSV historis. Klik Forecast untuk menjalankan TFT.`);
+            } catch (error) {
+                if (requestId !== scenarioRequestId) return;
+                scenarioCatalogPromise = null;
+                setSourceHistory('sample', []);
+                showStatus('error', error.message);
+            }
+        }
+
+        async function loadFromDataset(event) {
+            const requestId = ++scenarioRequestId;
+            setSourceHistory('dataset', []);
+            clearForecast();
+            const btn = event.currentTarget || event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="loading"><div class="loading-spinner"></div>Loading...</span>';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/load-dataset');
+                const result = await response.json();
+                if (requestId !== scenarioRequestId || currentMode !== 'dataset') return;
+
+                if (result.success && result.data) {
+                    encoderData = result.data;
+                    syncMarketParameters(encoderData);
+                    apiFutureData = null;
+                    currentMode = 'dataset';
+                    setSourceHistory('dataset', encoderData);
+
+                    // Show success
+                    document.getElementById('datasetInfo').style.display = 'block';
+                    document.getElementById('datasetDesc').textContent = `✅ Loaded ${result.data.length} rows from training versi 2. Date range: ${result.date_range}`;
+                    document.getElementById('datasetSource').textContent = 'Sumber data: Local training dataset';
+
+                    // Show preview
+                    showDatasetPreview(result.data.slice(-60, -50));
+
+                    showStatus('success', `CSV historis lengkap dimuat. Klik Forecast untuk menjalankan alur notebook.`);
+                } else {
+                    showStatus('error', 'Failed to load dataset: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                if (requestId === scenarioRequestId && currentMode === 'dataset') {
+                    showStatus('error', 'Error loading dataset: ' + e.message);
+                }
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Show preview table in a named container
+        function showPreviewTable(containerId, tableId, data) {
+            const preview = document.getElementById(containerId);
+            const table = document.getElementById(tableId);
+
+            if (!preview || !table) {
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                preview.style.display = 'none';
+                return;
+            }
+
+            const headers = Object.keys(data[0]);
+
+            let html = '<thead><tr>';
+            headers.forEach(h => {
+                html += `<th>${h}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach(row => {
+                html += '<tr>';
+                headers.forEach(h => {
+                    const val = row[h];
+                    const displayVal = typeof val === 'number' ? val.toFixed(2) : (val || '-');
+                    html += `<td>${displayVal}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+
+            table.innerHTML = html;
+            preview.style.display = 'block';
+        }
+
+        function showDatasetPreview(data) {
+            showPreviewTable('datasetPreview', 'datasetPreviewTable', data);
+        }
+
+        function showScenarioPreview(data) {
+            showPreviewTable('scenarioPreview', 'scenarioPreviewTable', data);
+        }
+
+        function manualValue(id, label) {
+            const raw = document.getElementById(id).value.trim();
+            const value = raw === '' ? NaN : Number(raw);
+            if (!Number.isFinite(value)) throw new Error(`Isi ${label} dengan angka aktual yang valid.`);
+            return value;
+        }
+
+        function parseManualCSV(text) {
+            // Read quoted CSV fields, including escaped quotes and CRLF files.
+            const records = [];
+            let row = [], field = '', quoted = false;
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                    if (quoted && text[i + 1] === '"') { field += '"'; i++; }
+                    else quoted = !quoted;
+                } else if (char === ',' && !quoted) {
+                    row.push(field.trim()); field = '';
+                } else if ((char === '\n' || char === '\r') && !quoted) {
+                    if (char === '\r' && text[i + 1] === '\n') i++;
+                    row.push(field.trim());
+                    if (row.some(value => value !== '')) records.push(row);
+                    row = []; field = '';
+                } else field += char;
+            }
+            if (quoted) throw new Error('Format kutipan CSV tidak valid.');
+            row.push(field.trim());
+            if (row.some(value => value !== '')) records.push(row);
+            if (records.length < 81) throw new Error('CSV harus memuat minimal 80 observasi mentah: 20 untuk fitur notebook dan 60 untuk encoder.');
+            const headers = records.shift().map(value => value.replace(/^\uFEFF/, '').trim().toLowerCase());
+            if (!headers.includes('date') || !headers.includes('close')) {
+                throw new Error('Kolom CSV wajib belum lengkap: date, close.');
+            }
+            const seen = new Set();
+            const data = records.map((values, index) => {
+                if (values.length !== headers.length) throw new Error(`Jumlah kolom CSV baris ${index + 2} tidak cocok.`);
+                const entry = {};
+                headers.forEach((key, colIdx) => {
+                    const raw = values[colIdx] !== undefined ? values[colIdx].trim() : '';
+                    if (key === 'date') {
+                        const date = new Date(raw + 'T00:00:00Z');
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || !Number.isFinite(date.getTime()) ||
+                            date.toISOString().slice(0, 10) !== raw || seen.has(raw)) {
+                            throw new Error(`Tanggal CSV baris ${index + 2} tidak valid atau duplikat: "${raw}".`);
+                        }
+                        seen.add(raw);
+                        entry.date = raw;
+                    } else if (key === 'close') {
+                        const val = Number(raw);
+                        if (raw === '' || !Number.isFinite(val) || val <= 0) {
+                            throw new Error(`Nilai close pada baris ${index + 2} tidak valid.`);
+                        }
+                        entry.close = val;
+                    } else if (key === 'open') {
+                        const val = Number(raw);
+                        entry.open = (raw !== '' && Number.isFinite(val) && val > 0) ? val : null;
+                    } else if (key === 'tickvol') {
+                        const val = Number(raw);
+                        entry.tickvol = (raw !== '' && Number.isFinite(val)) ? val : null;
+                    } else {
+                        if (raw === '' || raw.toLowerCase() === 'nan' || raw.toLowerCase() === 'null') {
+                            entry[key] = null;
+                        } else {
+                            const val = Number(raw);
+                            entry[key] = Number.isFinite(val) ? val : raw;
+                        }
+                    }
+                });
+                if (entry.open == null) {
+                    entry.open = entry.close;
+                }
+                return entry;
+            });
+            data.sort((a, b) => a.date.localeCompare(b.date));
+            return data;
+        }
+
+        let manualBaselinePromise = null;
+        let baselineDefaultValues = null;
+        let manualCSVInvalid = false;
+
+        async function ensureManualBaseline(forceReload = false) {
+            if (manualCSVInvalid) throw new Error('CSV manual belum valid. Unggah ulang CSV atau reset ke baseline.');
+            if (manualHistory && manualHistory.length >= 60 && !forceReload) {
+                return manualHistory;
+            }
+
+            // If user already loaded dataset in 'dataset' tab, use that as instant cache
+            if (sourceHistories['dataset'] && sourceHistories['dataset'].length >= 60 && !forceReload) {
+                manualHistory = sourceHistories['dataset'].map(r => ({...r}));
+                populateManualInputsFromHistory(manualHistory, 'Dataset Lokal Aktif');
+                if (currentMode === 'manual') configureForecastPeriod(true);
+                return manualHistory;
+            }
+
+            const infoEl = document.getElementById('manualHistoryInfo');
+            if (infoEl) infoEl.textContent = 'Memuat riwayat pasar aktual otomatis dari server...';
+
+            try {
+                if (!manualBaselinePromise || forceReload) {
+                    manualBaselinePromise = fetch('/load-dataset')
+                        .then(res => res.json())
+                        .then(result => {
+                            if (!result.success || !result.data) {
+                                throw new Error(result.error || 'Gagal memuat dataset historis.');
+                            }
+                            return result.data;
+                        });
+                }
+                const data = await manualBaselinePromise;
+                manualHistory = data.map(r => ({...r}));
+                populateManualInputsFromHistory(manualHistory, 'Dataset Aktual Lokal (gold_price_no_idr.csv)');
+                if (currentMode === 'manual') configureForecastPeriod(true);
+                return manualHistory;
+            } catch (err) {
+                console.error('Error loading manual baseline:', err);
+                if (infoEl) infoEl.textContent = 'Gagal memuat baseline historis: ' + err.message;
+                showStatus('error', 'Gagal memuat baseline historis: ' + err.message);
+                throw err;
+            }
+        }
+
+        function populateManualInputsFromHistory(rows, sourceName) {
+            if (!rows || rows.length === 0) return;
+            const latest = rows[rows.length - 1];
+            let usd = null, sp = null, oil = null, fed = null;
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const r = rows[i];
+                if (usd === null && (r.usd_close != null || r.dxy_close != null)) usd = r.dxy_close ?? r.usd_close;
+                if (sp === null && r.gspc_close != null) sp = r.gspc_close;
+                if (oil === null && r.oil_dcoilwtico != null) oil = r.oil_dcoilwtico;
+                if (fed === null && (r.fed_rate_pct != null || r.fed_dff_pct != null)) fed = r.fed_dff_pct ?? r.fed_rate_pct;
+                if (usd !== null && sp !== null && oil !== null && fed !== null) break;
+            }
+
+            baselineDefaultValues = {
+                goldPrice: latest.close != null ? Number(latest.close).toFixed(2) : '',
+                usdIndex: usd != null ? Number(usd).toFixed(2) : '',
+                sp500: sp != null ? Number(sp).toFixed(2) : '',
+                oilPrice: oil != null ? Number(oil).toFixed(2) : '',
+                fedRate: fed != null ? Number(fed).toFixed(2) : ''
+            };
+
+            // Prefill inputs if empty or untouched
+            Object.entries(baselineDefaultValues).forEach(([id, val]) => {
+                const el = document.getElementById(id);
+                if (el && (!el.value || el.value.trim() === '')) {
+                    el.value = val;
+                }
+            });
+
+            const infoEl = document.getElementById('manualHistoryInfo');
+            if (infoEl) {
+                infoEl.textContent = `Baseline otomatis: ${sourceName} (${rows.length} observasi s.d. ${latest.date}). Ubah nilai di bawah sesuai kebutuhan prediksi Anda.`;
+            }
+            const badgeEl = document.getElementById('manualBaselineBadge');
+            if (badgeEl) {
+                badgeEl.textContent = `✅ Baseline Siap (${latest.date})`;
+                badgeEl.style.background = 'var(--success)';
+            }
+        }
+
+        function resetManualInputsToBaseline() {
+            if (manualCSVInvalid) {
+                manualCSVInvalid = false;
+                manualHistory = null;
+                ensureManualBaseline(true);
+                return;
+            }
+            if (!baselineDefaultValues) {
+                ensureManualBaseline(true);
+                return;
+            }
+            Object.entries(baselineDefaultValues).forEach(([id, val]) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val;
+            });
+            clearForecast();
+            showStatus('info', 'Nilai input manual direset ke observasi pada tanggal pilihan.');
+        }
+
+        async function handleManualCSV(input) {
+            scenarioRequestId++;
+            manualHistory = null;
+            manualCSVInvalid = true;
+            clearForecast();
+            const predictButton = document.getElementById('btnPredict');
+            predictButton.disabled = true;
+            try {
+                if (!input.files || !input.files[0]) throw new Error('Pilih CSV riwayat aktual terlebih dahulu.');
+                const file = input.files[0];
+                manualHistory = parseManualCSV(await file.text());
+                manualCSVInvalid = false;
+                populateManualInputsFromHistory(manualHistory, `CSV (${file.name})`);
+                configureForecastPeriod(true);
+                showStatus('success', 'CSV aktual dimuat. Nilai observasi terakhir siap disesuaikan.');
+            } catch (error) {
+                manualHistory = null;
+                const infoEl = document.getElementById('manualHistoryInfo');
+                if (infoEl) infoEl.textContent = 'CSV riwayat belum valid.';
+                showStatus('error', error.message);
+            } finally {
+                configureForecastPeriod();
+            }
+        }
+
+        async function buildManualEncoder() {
+            if (manualCSVInvalid) throw new Error('CSV manual belum valid. Unggah ulang CSV atau reset ke baseline.');
+            if (!manualHistory || manualHistory.length < 60) {
+                await ensureManualBaseline();
+            }
+            if (!manualHistory || manualHistory.length < 60) {
+                throw new Error('Baseline data historis tidak tersedia. Periksa koneksi ke server.');
+            }
+            const overrides = {
+                close: manualValue('goldPrice', 'harga emas'),
+                dxy_close: manualValue('usdIndex', 'DXY'),
+                gspc_close: manualValue('sp500', 'S&P 500'),
+                oil_dcoilwtico: manualValue('oilPrice', 'harga minyak'),
+                fed_dff_pct: manualValue('fedRate', 'Fed DFF'),
+            };
+            if (['close', 'dxy_close', 'gspc_close'].some(key => overrides[key] <= 0)) {
+                throw new Error('Harga emas, DXY, dan S&P 500 harus lebih besar dari nol.');
+            }
+            const history = selectHistoryForForecast(manualHistory).map(row => ({...row}));
+            Object.assign(history[history.length - 1], overrides);
+            return history;
+        }
+
+        function isValidForecast(predictions) {
+            return Array.isArray(predictions) && predictions.length === 7 &&
+                predictions.every(p => {
+                    if (!p || typeof p.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(p.date) ||
+                        typeof p.prediction !== 'number' || !Number.isFinite(p.prediction)) return false;
+                    const date = new Date(p.date + 'T00:00:00Z');
+                    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === p.date;
+                });
+        }
+
+        function persistForecast() {
+            try {
+                localStorage.setItem(forecastStorageKey, JSON.stringify({
+                    mode: 'TFT-model', predictions: currentPredictions
+                }));
+            } catch (_) {
+                // Private browsing or full storage must not prevent showing a forecast.
+            }
+        }
+
+        function showForecast(predictions) {
+            currentPredictions = predictions;
+            const badge = document.getElementById('modelBadge');
+            badge.textContent = '✅ TFT Model';
+            badge.className = 'model-badge model-badge-tft';
+            badge.style.display = 'inline-flex';
+            renderChart(predictions);
+            renderTable(predictions);
+            renderSummary(predictions);
+        }
+
+        function restoreForecast() {
+            let saved;
+            try {
+                saved = JSON.parse(localStorage.getItem(forecastStorageKey));
+            } catch (_) {
+                return;
+            }
+            if (!saved || saved.mode !== 'TFT-model' || !isValidForecast(saved.predictions)) return;
+            showForecast(saved.predictions);
+            refreshForecastActuals();
+        }
+
+        async function refreshForecastActuals() {
+            if (document.hidden || actualRefreshInFlight || currentPredictions.length === 0) return;
+            const predictions = currentPredictions;
+            actualRefreshInFlight = true;
+            try {
+                const response = await fetch('/api/forecast-actuals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({predictions})
+                });
+                const result = await response.json();
+                if (currentPredictions !== predictions || !response.ok ||
+                    !result || !Array.isArray(result.predictions) ||
+                    result.predictions.length !== predictions.length) return;
+                const fields = ['actual_price', 'absolute_error', 'percentage_error'];
+                if (!result.predictions.every((row, i) =>
+                    row && row.date === predictions[i].date && row.prediction === predictions[i].prediction &&
+                    fields.every(field => row[field] === null || Number.isFinite(row[field])))) return;
+                currentPredictions = predictions.map((row, i) => ({
+                    ...row,
+                    actual_price: result.predictions[i].actual_price,
+                    absolute_error: result.predictions[i].absolute_error,
+                    percentage_error: result.predictions[i].percentage_error
+                }));
+                renderTable(currentPredictions);
+                persistForecast();
+            } catch (_) {
+                // Keep the forecast and last known actuals when the refresh is unavailable.
+            } finally {
+                actualRefreshInFlight = false;
+            }
+        }
+
+        // Run prediction
+        function clearForecast() {
+            forecastRequestId++;
+            predictionRunning = false;
+            document.getElementById('btnPredict').innerHTML = '<span>🔮 Generate 7-Day Forecast</span>';
+            document.getElementById('btnPredict').disabled = false;
+            renderActualsStatus([]);
+            currentPredictions = [];
+            document.getElementById('modelBadge').style.display = 'none';
+            Plotly.purge('chart');
+            document.getElementById('chart').innerHTML = '<p>Belum ada hasil prediksi TFT.</p>';
+            document.querySelector('#resultsTable tbody').innerHTML = '<tr><td colspan="6">Belum ada hasil prediksi TFT.</td></tr>';
+            document.getElementById('forecastSummary').textContent = 'Jalankan prediksi untuk melihat ringkasan.';
+        }
+
+        async function runPrediction() {
+            clearForecast();
+            const requestId = forecastRequestId;
+            const btn = document.getElementById('btnPredict');
+            predictionRunning = true;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"><div class="loading-spinner"></div>Processing...</span>';
+            showStatus('info', 'Preparing data and running TFT model prediction...');
+
+            try {
+                let encoder;
+                if (currentMode === 'manual') {
+                    encoder = await buildManualEncoder();
+                } else {
+                    encoder = selectHistoryForForecast(forecastHistory()).map(row => ({...row}));
+                }
+                await loadActualCoverage();
+                if (requestId !== forecastRequestId) return;
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        version: 'version_0',
+                        input_mode: currentMode,
+                        historical_data: encoder,
+                        forecast_adjustment: 'none'
+                    })
+                });
+                const result = await response.json();
+                if (requestId !== forecastRequestId) return;
+                if (response.ok && result.mode === 'TFT-model' && isValidForecast(result.predictions)) {
+                    showForecast(result.predictions);
+                    persistForecast();
+                    showStatus('success', 'Prediction completed successfully using TFT Model!');
+                } else {
+                    showStatus('error', 'Prediction failed: ' + (result.error || 'Model TFT tidak menghasilkan tujuh prediksi yang valid.'));
+                }
+            } catch (error) {
+                if (requestId === forecastRequestId) {
+                    clearForecast();
+                    showStatus('error', 'Error: ' + error.message);
+                }
+            } finally {
+                if (requestId === forecastRequestId) {
+                    predictionRunning = false;
+                    configureForecastPeriod();
+                    btn.innerHTML = '<span>🔮 Generate 7-Day Forecast</span>';
+                }
+            }
+        }
+
+        // Render chart
+        function renderChart(predictions) {
+            const days = predictions.map((_, i) => `Day ${i + 1}`);
+            const prices = predictions.map(p => p.prediction);
+
+            const trace = {
+                x: days,
+                y: prices,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#0f766e', width: 3 },
+                marker: { size: 10, color: '#0f766e' },
+                fill: 'tozeroy',
+                fillcolor: 'rgba(15, 118, 110, 0.1)'
+            };
+
+            const layout = {
+                title: {
+                    text: '7-Day Gold Price Forecast',
+                    font: { size: 18, color: '#1f2937' }
+                },
+                xaxis: {
+                    title: 'Forecast Day',
+                    gridcolor: '#e5e7eb'
+                },
+                yaxis: {
+                    title: 'Price (USD)',
+                    gridcolor: '#e5e7eb',
+                    tickformat: '$,.2f',
+                    hoverformat: '$,.4f',
+                    automargin: true
+                },
+                plot_bgcolor: '#f9fafb',
+                paper_bgcolor: 'white',
+                hovermode: 'x unified',
+                margin: { t: 60, r: 20, b: 60, l: 100 }
+            };
+
+            Plotly.newPlot('chart', [trace], layout, { responsive: true });
+        }
+
+        // Render results table
+        function renderTable(predictions) {
+            const tbody = document.querySelector('#resultsTable tbody');
+            const startDate = new Date();
+
+            let html = '';
+            predictions.forEach((p, i) => {
+                const date = p.date ? new Date(p.date + 'T00:00:00') : new Date(startDate);
+                if (!p.date) date.setDate(date.getDate() + i + 1);
+
+                const price = parseFloat(p.prediction);
+                const actual = p.actual_price;
+                const error = p.absolute_error;
+                const percentageError = p.percentage_error;
+
+                html += `
+                    <tr>
+                        <td><strong>Day ${i + 1}</strong></td>
+                        <td>${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                        <td class="price-cell">$${price.toFixed(4)}</td>
+                        <td>${Number.isFinite(actual) ? `$${actual.toFixed(4)}` : '-'}</td>
+                        <td>${Number.isFinite(error) ? `$${error.toFixed(4)}` : '-'}</td>
+                        <td>${Number.isFinite(percentageError) ? `${percentageError.toFixed(2)}%` : '-'}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+            renderActualsStatus(predictions);
+        }
+
+        // Render summary
+        function renderSummary(predictions) {
+            const prices = predictions.map(p => parseFloat(p.prediction));
+            const min = Math.min(...prices);
+            const max = Math.max(...prices);
+            const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+            const firstPrice = prices[0];
+            const lastPrice = prices[prices.length - 1];
+            totalChange = lastPrice - firstPrice;
+            totalChangePercent = (totalChange / firstPrice) * 100;
+
+            const changeClass = totalChange >= 0 ? 'color: var(--success);' : 'color: var(--danger);';
+            const changeIcon = totalChange >= 0 ? '↑' : '↓';
+
+            document.getElementById('forecastSummary').innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; text-align: left;">
+                    <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                        <div style="font-size: 12px; color: var(--gray);">Starting Price</div>
+                        <div style="font-size: 20px; font-weight: 700; color: var(--primary);">$${firstPrice.toFixed(4)}</div>
+                    </div>
+                    <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                        <div style="font-size: 12px; color: var(--gray);">Ending Price</div>
+                        <div style="font-size: 20px; font-weight: 700; color: var(--primary);">$${lastPrice.toFixed(4)}</div>
+                    </div>
+                    <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                        <div style="font-size: 12px; color: var(--gray);">7-Day Change</div>
+                        <div style="font-size: 20px; font-weight: 700; ${changeClass}">${changeIcon} $${Math.abs(totalChange).toFixed(4)} (${totalChangePercent.toFixed(4)}%)</div>
+                    </div>
+                    <div style="padding: 16px; background: var(--light); border-radius: 8px;">
+                        <div style="font-size: 12px; color: var(--gray);">Price Range</div>
+                        <div style="font-size: 16px; font-weight: 600; color: var(--dark);">$${min.toFixed(4)} - $${max.toFixed(4)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Show status
+        function showStatus(type, message) {
+            const card = document.getElementById('statusCard');
+            const status = document.getElementById('statusMessage');
+
+            card.style.display = 'block';
+            status.className = 'status status-' + type;
+            status.textContent = message;
+
+            if (type === 'success') {
+                status.innerHTML = '<span style="font-size: 18px;">✅</span> ' + message;
+            } else if (type === 'error') {
+                status.innerHTML = '<span style="font-size: 18px;">❌</span> ' + message;
+            } else if (type === 'info') {
+                status.innerHTML = '<span style="font-size: 18px;">ℹ️</span> ' + message;
+            } else if (type === 'warning') {
+                status.innerHTML = '<span style="font-size: 18px;">⚠️</span> ' + message;
+            }
+        }
+
+        // Download CSV
+        function downloadCSV() {
+            if (currentPredictions.length === 0) {
+                showStatus('error', 'No predictions to download');
+                return;
+            }
+
+            const startDate = new Date();
+            let csv = 'Day,Date,Predicted Price (USD),Actual Price (USD),Absolute Error (USD),Absolute Percentage Error (%)\n';
+
+            currentPredictions.forEach((p, i) => {
+                const date = p.date ? new Date(p.date + 'T00:00:00') : new Date(startDate);
+                if (!p.date) date.setDate(date.getDate() + i + 1);
+
+                const price = parseFloat(p.prediction);
+
+                const exportDate = p.date || date.toISOString().split('T')[0];
+                const actual = Number.isFinite(p.actual_price) ? p.actual_price.toFixed(4) : '';
+                const error = Number.isFinite(p.absolute_error) ? p.absolute_error.toFixed(4) : '';
+                const percentageError = Number.isFinite(p.percentage_error) ? p.percentage_error.toFixed(2) : '';
+                csv += `${i+1},${exportDate},${price.toFixed(4)},${actual},${error},${percentageError}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gold_forecast_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+
+            showStatus('success', 'CSV downloaded successfully!');
+        }
+
+        // Model Evaluation Functions
+        async function runModelEvaluation() {
+            showStatus('info', 'Memuat hasil evaluasi training versi 2...');
+
+            try {
+                const response = await fetch('/evaluate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version: 'version_0' })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Show results
+                    document.getElementById('evaluationResults').style.display = 'block';
+                    document.getElementById('modelInfoResults').style.display = 'none';
+                    document.getElementById('historicalResults').style.display = 'none';
+
+                    // Update metrics
+                    const m = result.metrics;
+                    document.getElementById('metricMAE').textContent = m.mae.toFixed(4);
+                    document.getElementById('metricRMSE').textContent = m.rmse.toFixed(4);
+                    document.getElementById('metricMAPE').textContent = m.mape.toFixed(2) + '%';
+                    document.getElementById('metricR2').textContent = m.r2_score.toFixed(4);
+
+                    // Update interpretation
+                    let interpretation = '';
+                    if (m.mape < 5) {
+                        interpretation = '🎯 Excellent! Model has very high accuracy (MAPE < 5%)';
+                    } else if (m.mape < 10) {
+                        interpretation = '✅ Good! Model has high accuracy (MAPE < 10%)';
+                    } else if (m.mape < 20) {
+                        interpretation = '⚠️ Moderate accuracy. Consider feature engineering (MAPE < 20%)';
+                    } else {
+                        interpretation = '❌ Low accuracy. Model needs improvement (MAPE > 20%)';
+                    }
+                    document.getElementById('metricInterpretation').textContent = interpretation;
+
+                    document.getElementById('evaluationSource').textContent =
+                        `Sumber: ${result.source}. ${result.sequence_count} sequence × ${result.horizon_count} horizon = ${result.sample_size.toLocaleString('id-ID')} pasangan aktual–prediksi.`;
+                    const body = document.getElementById('evaluationHorizons');
+                    body.replaceChildren();
+                    for (const row of result.multi_horizon) {
+                        const tr = document.createElement('tr');
+                        for (const value of [row.horizon, row.sample_size, row.mae.toFixed(4),
+                            row.rmse.toFixed(4), row.mape.toFixed(2), row.r2_score.toFixed(4)]) {
+                            const td = document.createElement('td');
+                            td.textContent = value;
+                            tr.appendChild(td);
+                        }
+                        body.appendChild(tr);
+                    }
+                    document.getElementById('evaluationChart').src = result.chart_url + '?source=' + result.source_sha256;
+                    showStatus('success', 'Hasil evaluasi training versi 2 berhasil dimuat.');
+                } else {
+                    showStatus('error', 'Evaluation failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                showStatus('error', 'Error: ' + e.message);
+            }
+        }
+
+        async function loadModelInfo() {
+            showStatus('info', 'Loading model information...');
+
+            try {
+                const response = await fetch('/model-info?version=version_0');
+                const result = await response.json();
+
+                if (result.success) {
+                    // Show model info
+                    document.getElementById('evaluationResults').style.display = 'none';
+                    document.getElementById('modelInfoResults').style.display = 'block';
+                    document.getElementById('historicalResults').style.display = 'none';
+
+                    const m = result.model;
+                    let html = `
+                        <div style="background: var(--light); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                             <div style="font-size: 12px; color: var(--gray);">Model Type</div>
+                             <div style="font-size: 18px; font-weight: 600; color: var(--primary);">${m.model_type}</div>
+                             <div style="font-size: 12px; color: var(--gray); margin-top: 8px;">Version: ${m.version} | Checkpoint: ${m.checkpoint}</div>
+                        </div>
+
+                        
+                        <h4 style="font-size: 14px; margin-bottom: 10px;">Architecture Hyperparameters</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px;">
+                            <div style="background: var(--light); padding: 16px; border-radius: 8px;">
+                                <div style="font-size: 12px; color: var(--gray);">Learning Rate</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--primary);">0,0005</div>
+                            </div>
+                            <div style="background: var(--light); padding: 16px; border-radius: 8px;">
+                                <div style="font-size: 12px; color: var(--gray);">Batch Size</div>
+                                <div style="font-size: 18px; font-weight: 600; color: var(--primary);">32</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Encoder Length</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.encoder_length}</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Decoder Length</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.decoder_length}</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Hidden Size</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.hidden_size}</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Attention Heads</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.attention_head_size}</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Dropout</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.dropout}</div>
+                            </div>
+                            <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                                <div style="font-size: 11px; color: var(--gray);">Loss Function</div>
+                                <div style="font-size: 16px; font-weight: 600;">${m.architecture.loss}</div>
+                            </div>
+                        </div>
+
+                        <h4 style="font-size: 14px; margin-bottom: 10px;">Input Features</h4>
+                        <div style="padding: 12px; background: var(--light); border-radius: 6px;">
+                            <div style="font-size: 11px; color: var(--gray);">Target: <strong>${m.features.target}</strong></div>
+                            <div style="font-size: 11px; color: var(--gray); margin-top: 4px;">Group IDs: ${m.features.group_ids.join(', ')}</div>
+                            <div style="font-size: 11px; color: var(--gray); margin-top: 4px;">Categorical Features: ${m.features.static_categoricals.join(', ')}</div>
+                            <div style="font-size: 11px; color: var(--gray); margin-top: 4px;">Known Reals: ${m.features.time_varying_known_reals.slice(0, 5).join(', ')}...</div>
+                        </div>
+                    `;
+
+                    document.getElementById('modelInfoContent').innerHTML = html;
+                    showStatus('success', 'Model information loaded!');
+                } else {
+                    showStatus('error', 'Failed to load model info: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                showStatus('error', 'Error: ' + e.message);
+            }
+        }
+
+        async function loadHistoricalPerformance() {
+            showStatus('info', 'Loading historical performance data...');
+
+            try {
+                const response = await fetch('/historical-performance?version=version_0&days=30');
+                const result = await response.json();
+
+                if (result.success) {
+                    // Show historical results
+                    document.getElementById('evaluationResults').style.display = 'none';
+                    document.getElementById('modelInfoResults').style.display = 'none';
+                    document.getElementById('historicalResults').style.display = 'block';
+
+                    // Render chart
+                    const data = result.data;
+                    const x = data.map((_, i) => i + 1);
+                    const y = data.map(d => d.close);
+
+                    const trace = {
+                        x: x,
+                        y: y,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: 'Gold Price',
+                        line: { color: '#0f766e', width: 2 },
+                        marker: { size: 6 },
+                        fill: 'tozeroy',
+                        fillcolor: 'rgba(15, 118, 110, 0.1)'
+                    };
+
+                    const layout = {
+                        title: {
+                            text: 'Historical Gold Price (Last 30 Days)',
+                            font: { size: 14 }
+                        },
+                        xaxis: { title: 'Day' },
+                        yaxis: { title: 'Price (USD)', tickformat: '$,.2f', automargin: true },
+                        hovermode: 'x unified',
+                        margin: { t: 50, r: 20, b: 50, l: 100 }
+                    };
+
+                    Plotly.newPlot('historicalChart', [trace], layout, { responsive: true });
+
+                    // Update summary
+                    const s = result.summary;
+                    document.getElementById('historicalSummary').innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; text-align: center;">
+                            <div>
+                                <div style="font-size: 11px; color: var(--gray);">Average</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--primary);">$${s.avg_close}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--gray);">Min</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--danger);">$${s.min_close}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--gray);">Max</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--success);">$${s.max_close}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 11px; color: var(--gray);">Volatility (Std)</div>
+                                <div style="font-size: 16px; font-weight: 600; color: var(--dark);">$${s.volatility}</div>
+                            </div>
+                        </div>
+                    `;
+
+                    showStatus('success', `Loaded ${data.length} days of historical data!`);
+                } else {
+                    showStatus('error', 'Failed to load historical data: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                showStatus('error', 'Error: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

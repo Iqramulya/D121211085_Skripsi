@@ -1,0 +1,15 @@
+Flask>=2.0
+pytest>=7.0
+torch>=2.6
+pytorch-lightning>=2.5,<3
+lightning>=2.5,<3
+pytorch-forecasting==1.8.0
+pandas
+numpy
+plotly
+gunicorn
+scikit-learn==1.6.1  # CRITICAL: Match dengan training environment!
+
+# API Libraries for real-time data
+yfinance>=0.2.28
+requests>=2.28.0
