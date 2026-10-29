@@ -1,0 +1,15 @@
+embeddings {
+  tensor_name: "group_id:00432"
+  metadata_path: "00432/group_id/metadata.tsv"
+  tensor_path: "00432/group_id/tensors.tsv"
+}
+embeddings {
+  tensor_name: "day_of_week:00432"
+  metadata_path: "00432/day_of_week/metadata.tsv"
+  tensor_path: "00432/day_of_week/tensors.tsv"
+}
+embeddings {
+  tensor_name: "month:00432"
+  metadata_path: "00432/month/metadata.tsv"
+  tensor_path: "00432/month/tensors.tsv"
+}
